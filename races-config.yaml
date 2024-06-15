@@ -15,6 +15,14 @@ groups:
     C: https://results.zone/cyclingrace-verey-2024/races/7308/results
     F: https://results.zone/cyclingrace-verey-2024/races/7309/results
 
+- name: Дубна
+  order: 6
+  results:
+    A: https://results.zone/tula_shosse_2024/races/7356/results
+    B: https://results.zone/tula_shosse_2024/races/7357/results
+    C: https://results.zone/tula_shosse_2024/races/7358/results
+    F: https://results.zone/tula_shosse_2024/races/7359/results
+
 time-trials:
 - name: Крылатские холмы
   order: 2
@@ -23,3 +31,7 @@ time-trials:
 - name: Верея ITT
   order: 3
   results: https://results.zone/cyclingrace-vereyitt-2024/races/7305/results
+  
+- name: Дубна ITT
+  order: 5
+  results: https://results.zone/tula_2024/races/7353/results
