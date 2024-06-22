@@ -1,37 +1,31 @@
-groups:
+clusters: data/clusters
+rating-dir: data
+races:
 - name: Садовое кольцо
+  tt-name: Крылатские холмы
   order: 1
-  results:
+  tt-first: False
+  group:
     A: https://results.zone/ring-2024/races/7257/results
     B: https://results.zone/ring-2024/races/7258/results
     C: https://results.zone/ring-2024/races/7259/results
     F: https://results.zone/ring-2024/races/7261/results
+  tt: https://results.zone/cyclingrace-tt-2024/races/7265/results
 
 - name: Верея
-  order: 4
-  results:
+  order: 2
+  group:
     A: https://results.zone/cyclingrace-verey-2024/races/7306/results
     B: https://results.zone/cyclingrace-verey-2024/races/7307/results
     C: https://results.zone/cyclingrace-verey-2024/races/7308/results
     F: https://results.zone/cyclingrace-verey-2024/races/7309/results
+  tt: https://results.zone/cyclingrace-vereyitt-2024/races/7305/results
 
 - name: Дубна
-  order: 6
-  results:
+  order: 3
+  group:
     A: https://results.zone/tula_shosse_2024/races/7356/results
     B: https://results.zone/tula_shosse_2024/races/7357/results
     C: https://results.zone/tula_shosse_2024/races/7358/results
     F: https://results.zone/tula_shosse_2024/races/7359/results
-
-time-trials:
-- name: Крылатские холмы
-  order: 2
-  results: https://results.zone/cyclingrace-tt-2024/races/7265/results
-
-- name: Верея ITT
-  order: 3
-  results: https://results.zone/cyclingrace-vereyitt-2024/races/7305/results
-  
-- name: Дубна ITT
-  order: 5
-  results: https://results.zone/tula_2024/races/7353/results
+  tt: https://results.zone/tula_2024/races/7353/results
