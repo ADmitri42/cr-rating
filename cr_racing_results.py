@@ -1,5 +1,7 @@
-from itertools import chain, repeat, islice
 from typing import Self
+from itertools import chain, repeat, islice
+from pathlib import Path
+import json
 from dataclasses import dataclass
 import requests
 import pandas as pd
@@ -38,6 +40,41 @@ class RaceResults:
             cluster_points[cluster] = pd.merge(left_table, right_table, how='outer', on='name')
 
         return cluster_points
+
+    def save(self, race_dir: Path | str):
+        " Save race info into "
+        if isinstance(race_dir, str):
+            race_dir = Path(race_dir)
+        race_dir.mkdir(parents=True, exist_ok=True)
+        metainfo = self.__dict__.copy()
+        metainfo['group'] = {}
+        for cluster, results in self.group.items():
+            results.to_csv(race_dir.joinpath(f'group_cluster_{cluster}.csv'))
+            metainfo['group'][cluster] = f'group_cluster_{cluster}.csv'
+
+        if self.tt is not None:
+            self.tt.to_csv(race_dir.joinpath('time_trial.csv'))
+            metainfo['tt'] = 'time_trial.csv'
+
+        with open(race_dir.joinpath('meta.json'), 'w', encoding='utf8') as fp:
+            json.dump(metainfo, fp, indent=2)
+
+    @classmethod
+    def load(cls, race_dir: Path | str) -> Self:
+        if isinstance(race_dir, str):
+            race_dir = Path(race_dir)
+        if not race_dir.exists():
+            raise FileNotFoundError(f'Path {str(race_dir)} does not exists.')
+        if not race_dir.is_dir():
+            raise NotADirectoryError(f'{str(race_dir)} not a directory')
+
+        with open(race_dir.joinpath('meta.json'), encoding='utf8') as fp:
+            race_info = json.load(fp)
+        for cluster, file in race_info['group'].items():
+            race_info['group'][cluster] = pd.read_csv(race_dir.joinpath(file))
+        if race_info['tt']:
+            race_info['tt'] = pd.read_csv(race_dir.joinpath(race_info['tt']))
+        return cls(**race_info)
 
     @classmethod
     def from_config(cls, race_config: dict, cluster_distribution: dict[str, tuple[str]] | None = None) -> Self:
@@ -80,14 +117,14 @@ class RaceResults:
         if not group_results:
             group_results = {cluster: () for cluster in group_results}
         cluster_from_race = set(
-            chain(*(map(_shorten_name, results.name.unique()) for results in group_results.values()))
+            chain(*(map(_shorten_name, results.loc[results.status == 'Q'].name.unique()) for results in group_results.values()))
         )
         new_clusters = {}
         for cluster, current_list in current_clusters.items():
             cluster_racers = set(
                 map(_shorten_name, group_results[cluster].name.unique())
             )
-            new_clusters[cluster] = tuple((set(current_list) - cluster_from_race).union(cluster_racers))
+            new_clusters[cluster] = tuple(cluster_racers | (set(current_list) - cluster_from_race))
         return new_clusters
 
 
