@@ -1,10 +1,12 @@
 from typing import Self
 from itertools import chain, repeat, islice
 from pathlib import Path
+import re
 import json
 from dataclasses import dataclass
 import requests
 import pandas as pd
+from bs4 import BeautifulSoup
 
 
 COLUMNS = ['bib', 'name', 'gender', 'category', 'status', 'rank_abs', 'result', 'result_time', 'team', 'club']
@@ -25,7 +27,7 @@ class RaceResults:
     order: int
     group: dict[str, pd.DataFrame]
     tt: pd.DataFrame | None
-    clusters: dict[str, tuple]
+    clusters: pd.DataFrame
     tt_first: bool = True
 
     def get_race_points(self) -> dict[str, pd.DataFrame]:
@@ -37,7 +39,7 @@ class RaceResults:
             race_points = get_points_for_race(cluster_results, self.tt_name)
             left_table = race_points if self.tt_first else cluster_points[cluster]
             right_table = cluster_points[cluster] if self.tt_first else race_points
-            cluster_points[cluster] = pd.merge(left_table, right_table, how='outer', on='name')
+            cluster_points[cluster] = pd.merge(left_table, right_table, how='outer', on=['name', 'year_of_birth'])
 
         return cluster_points
 
@@ -48,6 +50,8 @@ class RaceResults:
         race_dir.mkdir(parents=True, exist_ok=True)
         metainfo = self.__dict__.copy()
         metainfo['group'] = {}
+        metainfo['clusters'].to_csv(race_dir.joinpath('clusters.csv'))
+        metainfo['clusters'] = 'clusters.csv'
         for cluster, results in self.group.items():
             results.to_csv(race_dir.joinpath(f'group_cluster_{cluster}.csv'))
             metainfo['group'][cluster] = f'group_cluster_{cluster}.csv'
@@ -70,6 +74,7 @@ class RaceResults:
 
         with open(race_dir.joinpath('meta.json'), encoding='utf8') as fp:
             race_info = json.load(fp)
+        race_info['clusters'] = pd.read_csv(race_dir.joinpath(race_info['clusters']))
         for cluster, file in race_info['group'].items():
             race_info['group'][cluster] = pd.read_csv(race_dir.joinpath(file))
         if race_info['tt']:
@@ -77,16 +82,18 @@ class RaceResults:
         return cls(**race_info)
 
     @classmethod
-    def from_config(cls, race_config: dict, cluster_distribution: dict[str, tuple[str]] | None = None) -> Self:
+    def from_config(cls, race_config: dict, previous_clusters: pd.DataFrame | None, official_clusters: dict[str, tuple]) -> Self:
         " Create race results from config "
         name = race_config.get('group_name') or race_config.get('name')
         tt_name = race_config.get('tt-name') or f"{race_config['name']} ITT"
         group_results = cls.get_group_results(race_config['group'])
-        updated_cluster = cls.update_clusters(cluster_distribution, group_results)
         if 'tt' in race_config:
-            tt_results = cls.get_tt_results(race_config['tt'], updated_cluster)
+            tt_results = cls.get_tt_results(race_config['tt'])
+            updated_cluster = cls.update_clusters(group_results, tt_results, previous_clusters, official_clusters)
+            tt_results = pd.merge(tt_results, updated_cluster, how='left', on=('name', 'year_of_birth'))
         else:
             tt_results = None
+            updated_cluster = cls.update_clusters(group_results, tt_results, previous_clusters, official_clusters)
         return cls(
             name=name, tt_name=tt_name,
             order=race_config['order'],
@@ -98,39 +105,75 @@ class RaceResults:
 
     @staticmethod
     def get_group_results(group_results_links: dict[str, str]) -> dict[str, pd.DataFrame]:
-        " Get races "
+        " Get group race results "
         results = {}
-        for cluster, result_link in group_results_links.items():
-            results[cluster] = _get_results(result_link + '.json')
+        for cluster, results_link in group_results_links.items():
+            results[cluster] = _get_results(results_link + '.json')
+            yob = RaceResults._get_year_of_birth(results[cluster], results_link)
+            results[cluster] = pd.merge(results[cluster], yob, on='bib', how='left')
         return results
 
     @classmethod
-    def get_tt_results(cls, results_link: dict, clusters: dict[str, tuple[str]]) -> Self:
+    def get_tt_results(cls, results_link: dict) -> Self:
         " Parse race config and load data for TT race "
         results = _get_results(results_link + '.json')
-        _set_tt_cluster(results, clusters)
+        yob = RaceResults._get_year_of_birth(results, results_link)
+        results = pd.merge(results, yob, on='bib', how='left')
         return results
 
     @staticmethod
-    def update_clusters(current_clusters: dict[str, tuple] | None, group_results: dict[str, pd.DataFrame]) -> dict[str, tuple]:
-        " Update clusters with the list from the race "
-        if not group_results:
-            group_results = {cluster: () for cluster in group_results}
-        cluster_from_race = set(
-            chain(*(map(_shorten_name, results.loc[results.status == 'Q'].name.unique()) for results in group_results.values()))
-        )
-        new_clusters = {}
-        for cluster, current_list in current_clusters.items():
-            cluster_racers = set(
-                map(_shorten_name, group_results[cluster].name.unique())
+    def _get_year_of_birth(race_results: pd.DataFrame, race_link: str, timeout: int = 1000) -> pd.DataFrame:
+        " Get year of birth of the racers "
+        yob = []
+        for bib in race_results.bib:
+            r = requests.get(race_link + f'/{bib}', timeout=timeout)
+            page_info = BeautifulSoup(r.text, features="html.parser")
+            participatn_info = page_info.find_all('section', {'class': 'card-body'})
+            founded_year = list(
+                chain(*(card.find_all('dd', string=re.compile(r'\d{4}')) for card in participatn_info)),
             )
-            new_clusters[cluster] = tuple(cluster_racers | (set(current_list) - cluster_from_race))
-        return new_clusters
+            yob.append((bib, int(founded_year[-1].text) if founded_year else -1))
+        return pd.DataFrame(yob, columns=['bib', 'year_of_birth'])
 
+    @staticmethod
+    def update_clusters(
+            group_results: dict[str, pd.DataFrame],
+            tt_results: pd.DataFrame | None,
+            previous_clusters: pd.DataFrame | None,
+            official_clusters: dict[str, tuple]
+            ) -> pd.DataFrame:
+        " Update clusters with the list from the race "
+        clusters = []
+        for cluster in group_results:
+            df = group_results[cluster].loc[:, ['name', 'year_of_birth']]
+            df['cluster'] = cluster
+            clusters.append(df)
+        clusters = pd.concat(clusters)
+        if previous_clusters is not None:
+            clusters = pd.concat([clusters, previous_clusters], axis='index') \
+                .drop_duplicates(('name', 'year_of_birth'), keep='first')
 
-def _shorten_name(name: str) -> str:
-    splited_name = name.split(" ")
-    return " ".join(chain(splited_name[:-1], splited_name[-1][0]))
+        if tt_results is None:
+            return clusters
+
+        extended_clusters = pd.merge(
+            tt_results.loc[tt_results.status == 'Q', ['name', 'year_of_birth', 'gender', 'category']],
+            clusters,
+            how='outer',
+            on=['name', 'year_of_birth']
+        )
+
+        extended_clusters.loc[extended_clusters.gender == 'female', 'cluster'] = 'F'
+        extended_clusters.loc[extended_clusters.category == 'M Элита', 'cluster'] = 'A'
+        for cluster, clust_list in official_clusters.items():
+            extended_clusters.loc[
+                pd.isna(extended_clusters.cluster) & (extended_clusters.name.str.startswith(clust_list)),
+                'cluster'
+            ] = cluster
+
+        extended_clusters.loc[pd.isna(extended_clusters.cluster), 'cluster'] = 'C'
+
+        return extended_clusters.loc[:, ['name', 'year_of_birth', 'cluster']]
 
 
 def _get_results(results_url: str, full: bool = False, timeout: int = 1000) -> pd.DataFrame:
@@ -148,13 +191,6 @@ def _get_results(results_url: str, full: bool = False, timeout: int = 1000) -> p
         return full_results
     results_df = pd.DataFrame(full_results, columns=COLUMNS)
     return results_df
-
-
-def _set_tt_cluster(tt_results: pd.DataFrame, clusters: dict[str, tuple[str]]) -> None:
-    tt_results['cluster'] = 'C'
-    tt_results.loc[tt_results.gender == 'female', 'cluster'] = 'F'
-    for cluster, racers in clusters.items():
-        tt_results.loc[tt_results.name.str.startswith(racers), 'cluster'] = cluster
 
 
 def _pad_infinite(iterable, padding=None):
@@ -180,4 +216,4 @@ def get_points_for_race(race_results: pd.DataFrame, race_name: str | None = None
         .sort_values('rank_abs') \
         .set_index('rank_abs')
     sorted_results[points_column] = _generate_points(sorted_results.shape[0])
-    return sorted_results.loc[:, ['name', points_column]]
+    return sorted_results.loc[:, ['name', 'year_of_birth', points_column]]
