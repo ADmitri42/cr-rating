@@ -1,10 +1,10 @@
-clusters: data/clusters
 rating-dir: data
 races:
 - name: Садовое кольцо
   tt-name: Крылатские холмы
-  order: 1
   tt-first: False
+  year-fixes: data/garden-ring/right-years.yml
+  clusters: data/garden-ring/clusters.yml
   group:
     A: https://results.zone/ring-2024/races/7257/results
     B: https://results.zone/ring-2024/races/7258/results
@@ -13,7 +13,6 @@ races:
   tt: https://results.zone/cyclingrace-tt-2024/races/7265/results
 
 - name: Верея
-  order: 2
   group:
     A: https://results.zone/cyclingrace-verey-2024/races/7306/results
     B: https://results.zone/cyclingrace-verey-2024/races/7307/results
@@ -22,7 +21,6 @@ races:
   tt: https://results.zone/cyclingrace-vereyitt-2024/races/7305/results
 
 - name: Дубна
-  order: 3
   group:
     A: https://results.zone/tula_shosse_2024/races/7356/results
     B: https://results.zone/tula_shosse_2024/races/7357/results

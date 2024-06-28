@@ -6,6 +6,7 @@ import json
 from dataclasses import dataclass
 import requests
 import pandas as pd
+import yaml
 from bs4 import BeautifulSoup
 
 
@@ -24,7 +25,6 @@ class RaceResults:
     " Description of the race and its results "
     name: str
     tt_name: str
-    order: int
     group: dict[str, pd.DataFrame]
     tt: pd.DataFrame | None
     clusters: pd.DataFrame
@@ -82,21 +82,30 @@ class RaceResults:
         return cls(**race_info)
 
     @classmethod
-    def from_config(cls, race_config: dict, previous_clusters: pd.DataFrame | None, official_clusters: dict[str, tuple]) -> Self:
+    def from_config(
+            cls,
+            race_config: dict,
+            previous_clusters: pd.DataFrame | None,
+            official_clusters: dict[str, tuple]
+            ) -> Self:
         " Create race results from config "
         name = race_config.get('group_name') or race_config.get('name')
         tt_name = race_config.get('tt-name') or f"{race_config['name']} ITT"
+        tt_results: pd.DataFrame = None
         group_results = cls.get_group_results(race_config['group'])
         if 'tt' in race_config:
             tt_results = cls.get_tt_results(race_config['tt'])
-            updated_cluster = cls.update_clusters(group_results, tt_results, previous_clusters, official_clusters)
+
+        updated_cluster = cls.update_clusters(group_results, tt_results, previous_clusters, official_clusters)
+        if tt_results is not None:
             tt_results = pd.merge(tt_results, updated_cluster, how='left', on=('name', 'year_of_birth'))
-        else:
-            tt_results = None
-            updated_cluster = cls.update_clusters(group_results, tt_results, previous_clusters, official_clusters)
+
+        if 'year-fixes' in race_config:
+            with open(race_config['year-fixes'], encoding='utf-8') as fp:
+                fixes = yaml.safe_load(fp)
+            cls._fix_birth_year(group_results, tt_results, fixes)
         return cls(
             name=name, tt_name=tt_name,
-            order=race_config['order'],
             tt_first=race_config.get('tt-first', True),
             clusters=updated_cluster,
             group=group_results,
@@ -120,6 +129,15 @@ class RaceResults:
         yob = RaceResults._get_year_of_birth(results, results_link)
         results = pd.merge(results, yob, on='bib', how='left')
         return results
+
+    @staticmethod
+    def _fix_birth_year(group_results: dict[str, pd.DataFrame], tt_results: pd.DataFrame | None, fixes: dict[str, int]):
+        for cluster, fix in fixes.items():
+            for racer, right_year in fix.items():
+                group_results[cluster].loc[group_results[cluster].name == racer, 'year_of_birth'] = right_year
+                if tt_results is None:
+                    continue
+                tt_results.loc[tt_results.name == racer, 'year_of_birth'] = right_year
 
     @staticmethod
     def _get_year_of_birth(race_results: pd.DataFrame, race_link: str, timeout: int = 1000) -> pd.DataFrame:
