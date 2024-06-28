@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <title>Неофициальный рейтинг CR2024</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://use.fontawesome.com/releases/v5.15.4/css/all.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.1/dist/js/bootstrap.bundle.min.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://d3js.org/d3.v6.min.js"></script>
+</head>
+<body>
+<div class="m-3 ">
+    <h1>Неофициальный рейтинг Cyclingrace
+    </h1>
+
+    <hr class="bg-dark" style="height:3px">
+        <legend class="text-warning">Данный рейтинг считается автоматически и может расходится с официальным.</legend>
+        <br>
+        Методику расчета данного рейтинга можео посмотреть в <a href=https://github.com/ADmitri42/cr-rating>репозитории</a>.
+
+        <div class="tabs-x tabs-above">
+            <ul id="myTab-kv-1" class="nav nav-tabs" role="tablist">
+                <li class="nav-fill">
+                    <a class="nav-link active" href="#clusterA" role="tab" data-bs-toggle="tab" aria-controls="clusterA" aria-selected="true">
+                        Кластер A
+                    </a>
+                </li>
+                <li class="nav-fill">
+                    <a class="nav-link" href="#clusterB" role="tab" data-bs-toggle="tab" aria-controls="clusterB" aria-selected="true">
+                        Кластер B
+                    </a>
+                </li>
+                <li class="nav-fill">
+                    <a class="nav-link" href="#clusterC" role="tab" data-bs-toggle="tab" aria-controls="clusterC" aria-selected="true">
+                        Кластер C
+                    </a>
+                </li>
+                <li class="nav-fill">
+                    <a class="nav-link" href="#clusterF" role="tab" data-bs-toggle="tab" aria-controls="clusterF" aria-selected="true">
+                        Кластер F
+                    </a>
+                </li>
+            </ul>
+            <div id="myTabContent-kv-1" class="tab-content">
+                <div class="tab-pane fade show active" id="clusterA" role="tabpanel" aria-labelledby="clusterA">
+                    <table class="table" id="clusterATable">
+                        <thead>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="tab-pane fade" id="clusterB" role="tabpanel" aria-labelledby="clusterB">
+                    <table class="table" id="clusterBTable">
+                        <thead>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="tab-pane fade" id="clusterC" role="tabpanel" aria-labelledby="clusterC">
+                    <table class="table" id="clusterCTable">
+                        <thead>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+                <div class="tab-pane fade" id="clusterF" role="tabpanel" aria-labelledby="clusterF">
+                    <table class="table" id="clusterFTable">
+                        <thead>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+</div>
+
+<script>
+    function renderTable(data, tableId) {
+        var tableHeader = d3.select("#" + tableId + " thead");
+        var tableBody = d3.select("#" + tableId + " tbody");
+
+        tableHeader.selectAll("tr").remove();
+        tableHeader.append('tr')
+        .selectAll('th')
+            .data(data.columns)
+            .enter()
+        .append('th')
+            .text(function (d) { return d })
+
+        // Удаление существующих строк таблицы
+        tableBody.selectAll("tr").remove();
+        // Добавление новых строк в таблицу
+        var rows = tableBody.selectAll('tr')
+            .data(data)
+            .enter()
+        .append('tr')
+
+        var cells = rows.selectAll('td')
+            .data(function(row) {
+                return data.columns.map(function (column) {
+                    if (row[column].length === 0 || isNaN(Math.ceil(row[column]))) {
+                        return { column: column, value: row[column] }
+                    }
+                    return { column: column, value: Math.ceil(row[column]) }
+            })
+        })
+        .enter()
+        .append('td')
+        .text(function (d) { return d.value })
+    }
+    d3.csv("data/cluster_A.csv").then(function(data) {renderTable(data, "clusterATable")});
+    d3.csv("data/cluster_B.csv").then(function(data) {renderTable(data, "clusterBTable")});
+    d3.csv("data/cluster_C.csv").then(function(data) {renderTable(data, "clusterCTable")});
+    d3.csv("data/cluster_F.csv").then(function(data) {renderTable(data, "clusterFTable")});
+</script>
+</body>
+</html>
