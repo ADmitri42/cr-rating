@@ -34,6 +34,9 @@ class RaceResults:
         cluster_points = {
             cluster: get_points_for_race(results, self.name) for cluster, results in self.group.items()
         }
+        if self.tt is None:
+            return cluster_points
+
         for cluster in cluster_points:
             cluster_results = self.tt[self.tt['cluster'] == cluster]
             race_points = get_points_for_race(cluster_results, self.tt_name)

@@ -35,7 +35,11 @@ def load_official_clusters(clusters_path: Path | str) -> dict[str, tuple[str]]:
     return official_clusters
 
 
-def load_races(race_configs: list[dict[str, Any]], store_localy: Path | str | None = None) -> list[RaceResults]:
+def load_races(
+        race_configs: list[dict[str, Any]],
+        store_localy: Path | str | None = None,
+        use_local: bool = False
+        ) -> list[RaceResults]:
     " Load race results "
     logger.info('Loading races')
     if isinstance(store_localy, str):
@@ -52,9 +56,13 @@ def load_races(race_configs: list[dict[str, Any]], store_localy: Path | str | No
         logger.info(f'Processing race {race['name']}')
         if 'clusters' in race:
             official_clusters = load_official_clusters(race['clusters'])
-        race = RaceResults.from_config(race, cluster_distribution, official_clusters)
+        local_path = store_localy.joinpath(race.get('group-name') or race['name'])
+        if use_local and local_path.exists():
+            race = RaceResults.load(local_path)
+        else:
+            race = RaceResults.from_config(race, cluster_distribution, official_clusters)
         if store_localy:
-            race.save(store_localy.joinpath(race.name))
+            race.save(local_path)
         cluster_distribution = race.clusters
         races.append(race)
     return races
@@ -98,6 +106,7 @@ def save_rating(current_standing: dict[str, pd.DataFrame], rating_dir: Path):
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('race_config', help='YAML file with info about races')
+    parser.add_argument('--use-local', action='store_true', default=False)
     return parser.parse_args()
 
 
@@ -111,6 +120,6 @@ if __name__ == '__main__':
     if not rating_dir.is_dir():
         raise NotADirectoryError(f'{str(rating_dir)} is not a directory')
 
-    races = load_races(race_results_config['races'], race_results_config.get('local_storage'))
+    races = load_races(race_results_config['races'], race_results_config.get('local_storage'), args.use_local)
     cluster_standing = calculate_cluster_standing(races)
     save_rating(cluster_standing, rating_dir)

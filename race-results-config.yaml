@@ -1,4 +1,5 @@
-rating-dir: data
+rating-dir: data/rating
+local_storage: data/races
 races:
 - name: Садовое кольцо
   tt-name: Крылатские холмы
@@ -27,3 +28,10 @@ races:
     C: https://results.zone/tula_shosse_2024/races/7358/results
     F: https://results.zone/tula_shosse_2024/races/7359/results
   tt: https://results.zone/tula_2024/races/7353/results
+
+- name: Столица
+  group:
+    A: https://results.zone/cyclingrace-stolica-2024/races/7403/results
+    B: https://results.zone/cyclingrace-stolica-2024/races/7404/results
+    C: https://results.zone/cyclingrace-stolica-2024/races/7405/results
+    F: https://results.zone/cyclingrace-stolica-2024/races/7406/results
